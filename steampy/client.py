@@ -6,6 +6,7 @@ from typing import List, Union
 
 import json
 import requests
+from requests import cookies
 from steampy import guard
 from steampy.chat import SteamChat
 from steampy.confirmation import ConfirmationExecutor
@@ -40,12 +41,40 @@ class SteamClient:
         self.chat = SteamChat(self._session)
 
     def login(self, username: str, password: str, steam_guard: str) -> None:
+        self._guard_path = steam_guard
         self.steam_guard = guard.load_steam_guard(steam_guard)
         self.username = username
         self._password = password
         LoginExecutor(username, password, self.steam_guard['shared_secret'], self._session).login()
         self.was_login_executed = True
         self.market._set_login_executed(self.steam_guard, self._get_session_id())
+
+    def get_credentials(self) -> None:
+        '''
+        This method used for extract all creadentials data.
+        You can store it on your disk or somethink like that.
+        '''
+        data = {
+            'username': self.username,
+            'password': self._password,
+            'steam_guard': self._guard_path,
+            'cookies': requests.utils.dict_from_cookiejar(self._session.cookies)
+        }
+        return data
+
+    def set_credentials(self, credentials):
+        '''
+        You can restore your previous steam session by this method.
+        For creating credentials use get_credentials method.
+        '''
+        self.username = credentials['username']
+        self._password = credentials['password']
+        self._guard_path = credentials['steam_guard']
+        self.steam_guard = guard.load_steam_guard(credentials['steam_guard'])
+
+        self._session = requests.Session()
+        cookies = requests.utils.cookiejar_from_dict(credentials['cookies'])
+        self._session.cookies.update(cookies)
 
     @login_required
     def logout(self) -> None:
